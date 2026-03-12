@@ -1,7 +1,10 @@
 # TokenSiren
 
-TokenSiren is an in progress eBPF based observability tool for streaming LLM inference. The current codebase focuses on the architectural skeleton and types that enable kernel side aggregation and a Go userspace control plane, with vLLM as the first intended runtime target.
+TokenSiren explores low-overhead telemetry collection for LLM inference runtimes using eBPF uprobes.
 
+The project separates kernel-resident event collection from userspace metric export, allowing token-level request behavior to be observed with minimal impact on the inference hot path.
+
+The current repository establishes the architecture and map schemas for a first viable pipeline targeting vLLM.
 ## Status
 
 This repository is not yet feature complete. Several components are stubs and exist to lock in interfaces, map schemas, and attach plans for a first viable path.
