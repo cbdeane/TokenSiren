@@ -23,6 +23,8 @@ type UprobeSpec struct {
 type Handle struct {
     collection *ebpf.Collection
     links      []link.Link
+    metricBuckets *ebpf.Map
+    activeStreams *ebpf.Map
 }
 
 func (h *Handle) Close() error {
@@ -36,6 +38,20 @@ func (h *Handle) Close() error {
         h.collection.Close()
     }
     return nil
+}
+
+func (h *Handle) MetricBuckets() *ebpf.Map {
+    if h == nil {
+        return nil
+    }
+    return h.metricBuckets
+}
+
+func (h *Handle) ActiveStreams() *ebpf.Map {
+    if h == nil {
+        return nil
+    }
+    return h.activeStreams
 }
 
 func Attach(spec AttachSpec) (*Handle, error) {
@@ -56,7 +72,15 @@ func Attach(spec AttachSpec) (*Handle, error) {
         return nil, fmt.Errorf("create bpf collection: %w", err)
     }
 
-    handle := &Handle{collection: coll}
+    handle := &Handle{
+        collection:   coll,
+        metricBuckets: coll.Maps["metric_buckets"],
+        activeStreams: coll.Maps["active_streams"],
+    }
+    if handle.metricBuckets == nil {
+        handle.Close()
+        return nil, errors.New("missing map metric_buckets in bpf object")
+    }
     for _, up := range spec.Uprobes {
         if up.BinaryPath == "" {
             handle.Close()

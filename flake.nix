@@ -9,6 +9,7 @@
     devShells.x86_64-linux.default = let
       pkgs = nixpkgs.legacyPackages.x86_64-linux;
       llvm = pkgs.llvmPackages;
+      linuxPkgs = pkgs.linuxPackages_latest;
       clangdWrapped = pkgs.writeShellScriptBin "clangd" ''
         exec ${pkgs.clang-tools}/bin/clangd \
           --query-driver=${pkgs.gcc}/bin/g++ \
@@ -29,6 +30,8 @@
 	  go
           linuxHeaders
           libbpf
+          bpftools
+          bpftrace
         ];
         shellHook = ''
           export CC=${pkgs.gcc}/bin/gcc
