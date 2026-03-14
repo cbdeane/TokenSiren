@@ -10,79 +10,79 @@ Goal: Attach to a vLLM runtime, collect streaming metrics with eBPF, export Prom
 
 ## 1. Make the BPF program functional
 - [ ] Implement `handle_request_start` in `bpf/tracer.c`
-  - [ ] Construct `stream_key` from runtime inputs or a fallback identity
-  - [ ] Initialize `stream_state` with `start_ns` and clear other fields
-  - [ ] Store in `active_streams`
+- [ ] Construct `stream_key` from runtime inputs or a fallback identity
+- [ ] Initialize `stream_state` with `start_ns` and clear other fields
+- [ ] Store in `active_streams`
 - [ ] Implement `handle_token_emit` in `bpf/tracer.c`
-  - [ ] Lookup `active_streams` by key
-  - [ ] Read current time in ns
-  - [ ] If first token not seen, set `first_token_ns` and bucket TTFT
-  - [ ] Else compute delta from `last_token_ns` and bucket inter token latency
-  - [ ] Increment `token_count` and update `last_token_ns`
+- [ ] Lookup `active_streams` by key
+- [ ] Read current time in ns
+- [ ] If first token not seen, set `first_token_ns` and bucket TTFT
+- [ ] Else compute delta from `last_token_ns` and bucket inter token latency
+- [ ] Increment `token_count` and update `last_token_ns`
 - [ ] Implement `handle_request_end` in `bpf/tracer.c`
-  - [ ] Lookup `active_streams`
-  - [ ] Set `end_ns`
-  - [ ] Bucket duration and tokens per response
-  - [ ] Increment request counter or error counter
-  - [ ] Delete from `active_streams` and `conn_index` if used
+- [ ] Lookup `active_streams`
+- [ ] Set `end_ns`
+- [ ] Bucket duration and tokens per response
+- [ ] Increment request counter or error counter
+- [ ] Delete from `active_streams` and `conn_index` if used
 - [ ] Add helper for bucket selection in BPF to match `internal/metrics/buckets.go`
 - [ ] Decide map types for `metric_buckets` and `active_streams` in v1
 
 ## 2. Compile and package the BPF object
-- [ ] Add a build step in `Makefile` to compile `bpf/tracer.c` into a BPF object
+- [x] Add a build step in `Makefile` to compile `bpf/tracer.c` into a BPF object
 - [ ] Decide object output path and document it
 - [ ] Verify the object loads with `bpftool` or the Go loader once implemented
 
 ## 3. Implement probe attachment in Go
 - [ ] Implement `Attach` in `internal/probes/attach.go`
-  - [ ] Load the BPF object with libbpf or cilium ebpf
-  - [ ] Open BPF maps and keep handles in `Handle`
-  - [ ] Attach uprobes for request start, token emit, request end
-  - [ ] Provide `Close` that detaches probes and closes maps
+- [ ] Load the BPF object with libbpf or cilium ebpf
+- [ ] Open BPF maps and keep handles in `Handle`
+- [ ] Attach uprobes for request start, token emit, request end
+- [ ] Provide `Close` that detaches probes and closes maps
 - [ ] Add errors with clear context for missing symbols or binaries
 
 ## 4. Implement vLLM runtime resolution
-- [ ] Decide how to discover vLLM binary and symbols
-  - [ ] Fixed config file, env vars, or CLI flags
-  - [ ] Map function names to `RequestStart`, `TokenEmit`, `RequestEnd`
+- [x] Decide how to discover vLLM binary and symbols
+- [x] Fixed config file, env vars, or CLI flags
+- [x] Map function names to `RequestStart`, `TokenEmit`, `RequestEnd`
 - [ ] Update `internal/runtime/vllm.go` to validate all required fields
 - [ ] Add defaults or error messages that point to correct symbol names
 
 ## 5. Implement Prometheus exporter
 - [ ] Implement `ServePrometheus` in `internal/exporter/prometheus.go`
-  - [ ] Read `metric_buckets` at a fixed interval
-  - [ ] Convert bucket counts into Prometheus histograms and counters
-  - [ ] Expose `/metrics` on a configurable port
+- [ ] Read `metric_buckets` at a fixed interval
+- [ ] Convert bucket counts into Prometheus histograms and counters
+- [ ] Expose `/metrics` on a configurable port
 - [ ] Choose label strategy
-  - [ ] Start with a minimal set: runtime, model, status
-  - [ ] Keep label cardinality bounded
+- [ ] Start with a minimal set: runtime, model, status
+- [ ] Keep label cardinality bounded
 
 ## 6. Wire CLI or config
-- [ ] Add CLI flags or config file parsing in `cmd/tokensiren/main.go`
-  - [ ] BPF object path
-  - [ ] vLLM binary path
-  - [ ] symbol names
-  - [ ] metrics listen address
+- [x] Add CLI flags or config file parsing in `cmd/tokensiren/main.go`
+- [x] BPF object path
+- [x] vLLM binary path
+- [x] symbol names
+- [ ] metrics listen address
 - [ ] Validate inputs and print a clear startup summary
 
 ## 7. Add local run flow
 - [ ] Add a minimal runbook section in `README.md`
-  - [ ] Build steps
-  - [ ] Example config
-  - [ ] Required kernel features
-  - [ ] How to run Prometheus and Grafana
+- [ ] Build steps
+- [ ] Example config
+- [ ] Required kernel features
+- [ ] How to run Prometheus and Grafana
 - [ ] Update `examples/prometheus.yml` if the metrics endpoint changes
 
 ## 8. Prepare for Kubernetes DaemonSet + ConfigMap
-- [ ] Define env var contract for config (ConfigMap + `.env`)
+- [x] Define env var contract for config (ConfigMap + `.env`)
 - [ ] Add a DaemonSet manifest template
-  - [ ] `hostPID: true`
-  - [ ] `privileged: true` or explicit caps (`BPF`, `SYS_ADMIN`, `PERFMON`, `SYS_RESOURCE`)
-  - [ ] HostPath mounts for `/proc`, `/sys/fs/bpf`, `/sys/kernel/debug`
-  - [ ] Prometheus scrape port + Service (or hostPort) definition
+- [ ] `hostPID: true`
+- [ ] `privileged: true` or explicit caps (`BPF`, `SYS_ADMIN`, `PERFMON`, `SYS_RESOURCE`)
+- [ ] HostPath mounts for `/proc`, `/sys/fs/bpf`, `/sys/kernel/debug`
+- [ ] Prometheus scrape port + Service (or hostPort) definition
 - [ ] Document target process discovery strategy
-  - [ ] Resolve container PID via `/proc` and cgroups
-  - [ ] Map to binary path via `/proc/<pid>/root/...`
+- [ ] Resolve container PID via `/proc` and cgroups
+- [ ] Map to binary path via `/proc/<pid>/root/...`
 - [ ] Add example ConfigMap with symbol names and binary path template
 - [ ] Note runtime-specific considerations (containerd vs Docker path resolution)
 
