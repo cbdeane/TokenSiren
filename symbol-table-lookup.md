@@ -60,12 +60,19 @@ Probeable symbols found (from `nm -a --demangle`):
 
 These are compute-level functions (not explicit request start/end markers), but they are valid uprobe targets and sufficient to wire the initial attach path.
 
+### Mangled symbol names (required for `link.OpenExecutable().Uprobe`)
+
+The Go uprobe attach uses ELF symbol names, so the mangled symbols are required. From `nm -a` (non-demangled):
+
+- `_Z18mla_decode_kvcacheRN2at6TensorES1_S1_dS1_S1_`
+- `_Z24per_token_quant_int8_cpuRN2at6TensorE`
+
 ## Suggested initial mapping for TokenSiren
 
 - `BinaryPath`: `/opt/venv/lib/python3.12/site-packages/vllm/_C.abi3.so`
-- `RequestStart`: `mla_decode_kvcache(at::Tensor&, at::Tensor&, at::Tensor&, double, at::Tensor&, at::Tensor&)`
-- `TokenEmit`: `mla_decode_kvcache(at::Tensor&, at::Tensor&, at::Tensor&, double, at::Tensor&, at::Tensor&)`
-- `RequestEnd`: `per_token_quant_int8_cpu(at::Tensor&)`
+- `RequestStart`: `_Z18mla_decode_kvcacheRN2at6TensorES1_S1_dS1_S1_`
+- `TokenEmit`: `_Z18mla_decode_kvcacheRN2at6TensorES1_S1_dS1_S1_`
+- `RequestEnd`: `_Z24per_token_quant_int8_cpuRN2at6TensorE`
 - `BPFObject`: `gen/tracer.o` (host build output)
 
 ## Notes / caveats

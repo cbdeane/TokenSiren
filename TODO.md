@@ -49,10 +49,10 @@ Goal: Attach to a vLLM runtime, collect streaming metrics with eBPF, export Prom
 - [ ] Add defaults or error messages that point to correct symbol names
 
 ## 5. Implement Prometheus exporter
-- [ ] Implement `ServePrometheus` in `internal/exporter/prometheus.go`
-- [ ] Read `metric_buckets` at a fixed interval
-- [ ] Convert bucket counts into Prometheus histograms and counters
-- [ ] Expose `/metrics` on a configurable port
+- [x] Implement `ServePrometheus` in `internal/exporter/prometheus.go`
+  - [ ] Read `metric_buckets` at a fixed interval
+  - [ ] Convert bucket counts into Prometheus histograms and counters
+  - [x] Expose `/metrics` on a configurable port
 - [ ] Choose label strategy
 - [ ] Start with a minimal set: runtime, model, status
 - [ ] Keep label cardinality bounded
