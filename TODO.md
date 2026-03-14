@@ -3,10 +3,17 @@
 Goal: Attach to a vLLM runtime, collect streaming metrics with eBPF, export Prometheus metrics, and view them in a Grafana dashboard.
 
 ## 0. Define v1 acceptance criteria
-- [ ] Write down the target environment: Linux kernel version, distro, CPU arch, and whether root or CAP_BPF is available
-- [ ] Decide the single runtime target for v1: vLLM only
-- [ ] Confirm v1 success metrics: TTFT, inter token latency, stream duration, tokens per response
-- [ ] Set minimal operational requirement: `tokensiren` runs, `/metrics` serves data, Grafana dashboard shows non zero series
+- [x] Write down the target environment: Linux x86_64, run with sudo for BPF access
+- [x] Decide the single runtime target for v1: vLLM only
+- [x] Confirm v1 success metrics for Grafana (use current probe coverage; no additional probe hunting):
+  - Active Streams
+  - Tokens/s
+  - Requests/s
+  - P50/P95/P99 request latency
+  - Token interarrival latency
+  - Tokens per request distribution
+  - TTFT (if feasible in v1)
+- [ ] Set minimal operational requirement: Grafana dashboard shows non-zero series for confirmed metrics (include screenshot in repo)
 
 ## 1. Make the BPF program functional
 - [x] Implement `handle_request_start` in `bpf/tracer.c`
@@ -30,8 +37,8 @@ Goal: Attach to a vLLM runtime, collect streaming metrics with eBPF, export Prom
 
 ## 2. Compile and package the BPF object
 - [x] Add a build step in `Makefile` to compile `bpf/tracer.c` into a BPF object
-- [ ] Decide object output path and document it
-- [ ] Verify the object loads with `bpftool` or the Go loader once implemented
+- [x] Decide object output path and document it (`gen/tracer.o`)
+- [x] Verify the object loads with `bpftool` or the Go loader once implemented
 
 ## 3. Implement probe attachment in Go
 - [x] Implement `Attach` in `internal/probes/attach.go`
@@ -45,8 +52,8 @@ Goal: Attach to a vLLM runtime, collect streaming metrics with eBPF, export Prom
 - [x] Decide how to discover vLLM binary and symbols
 - [x] Fixed config file, env vars, or CLI flags
 - [x] Map function names to `RequestStart`, `TokenEmit`, `RequestEnd`
-- [ ] Update `internal/runtime/vllm.go` to validate all required fields
-- [ ] Add defaults or error messages that point to correct symbol names
+- [x] Update `internal/runtime/vllm.go` to validate all required fields
+- [x] Add defaults or error messages that point to correct symbol names
 
 ## 5. Implement Prometheus exporter
 - [x] Implement `ServePrometheus` in `internal/exporter/prometheus.go`

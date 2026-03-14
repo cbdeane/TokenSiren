@@ -16,7 +16,19 @@ type VLLMConfig struct {
 
 func ResolveVLLM(cfg VLLMConfig) (probes.AttachSpec, error) {
     if cfg.BPFObject == "" {
-        return probes.AttachSpec{}, fmt.Errorf("missing BPFObject")
+        return probes.AttachSpec{}, fmt.Errorf("missing BPFObject (set TOKENSIREN_BPF_OBJECT, e.g. gen/tracer.o)")
+    }
+    if cfg.BinaryPath == "" {
+        return probes.AttachSpec{}, fmt.Errorf("missing BinaryPath (set TOKENSIREN_BINARY_PATH; example: /proc/<pid>/root/opt/venv/lib/python3.12/site-packages/vllm/_C.abi3.so)")
+    }
+    if cfg.RequestStart == "" {
+        return probes.AttachSpec{}, fmt.Errorf("missing RequestStart (set TOKENSIREN_REQUEST_START to a mangled ELF symbol; see symbol-table-lookup.md for examples)")
+    }
+    if cfg.TokenEmit == "" {
+        return probes.AttachSpec{}, fmt.Errorf("missing TokenEmit (set TOKENSIREN_TOKEN_EMIT to a mangled ELF symbol; see symbol-table-lookup.md for examples)")
+    }
+    if cfg.RequestEnd == "" {
+        return probes.AttachSpec{}, fmt.Errorf("missing RequestEnd (set TOKENSIREN_REQUEST_END to a mangled ELF symbol; see symbol-table-lookup.md for examples)")
     }
     return probes.AttachSpec{
         BPFObjectPath: cfg.BPFObject,
