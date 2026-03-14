@@ -9,24 +9,24 @@ Goal: Attach to a vLLM runtime, collect streaming metrics with eBPF, export Prom
 - [ ] Set minimal operational requirement: `tokensiren` runs, `/metrics` serves data, Grafana dashboard shows non zero series
 
 ## 1. Make the BPF program functional
-- [ ] Implement `handle_request_start` in `bpf/tracer.c`
-- [ ] Construct `stream_key` from runtime inputs or a fallback identity
-- [ ] Initialize `stream_state` with `start_ns` and clear other fields
-- [ ] Store in `active_streams`
-- [ ] Implement `handle_token_emit` in `bpf/tracer.c`
-- [ ] Lookup `active_streams` by key
-- [ ] Read current time in ns
-- [ ] If first token not seen, set `first_token_ns` and bucket TTFT
-- [ ] Else compute delta from `last_token_ns` and bucket inter token latency
-- [ ] Increment `token_count` and update `last_token_ns`
-- [ ] Implement `handle_request_end` in `bpf/tracer.c`
-- [ ] Lookup `active_streams`
-- [ ] Set `end_ns`
-- [ ] Bucket duration and tokens per response
-- [ ] Increment request counter or error counter
-- [ ] Delete from `active_streams` and `conn_index` if used
-- [ ] Add helper for bucket selection in BPF to match `internal/metrics/buckets.go`
-- [ ] Decide map types for `metric_buckets` and `active_streams` in v1
+- [x] Implement `handle_request_start` in `bpf/tracer.c`
+- [x] Construct `stream_key` from runtime inputs or a fallback identity
+- [x] Initialize `stream_state` with `start_ns` and clear other fields
+- [x] Store in `active_streams`
+- [x] Implement `handle_token_emit` in `bpf/tracer.c`
+- [x] Lookup `active_streams` by key
+- [x] Read current time in ns
+- [x] If first token not seen, set `first_token_ns` and bucket TTFT
+- [x] Else compute delta from `last_token_ns` and bucket inter token latency
+- [x] Increment `token_count` and update `last_token_ns`
+- [x] Implement `handle_request_end` in `bpf/tracer.c`
+- [x] Lookup `active_streams`
+- [x] Set `end_ns`
+- [x] Bucket duration and tokens per response
+- [x] Increment request counter or error counter
+- [x] Delete from `active_streams` and `conn_index` if used
+- [x] Add helper for bucket selection in BPF to match `internal/metrics/buckets.go`
+- [x] Decide map types for `metric_buckets` and `active_streams` in v1
 
 ## 2. Compile and package the BPF object
 - [x] Add a build step in `Makefile` to compile `bpf/tracer.c` into a BPF object
@@ -87,10 +87,10 @@ Goal: Attach to a vLLM runtime, collect streaming metrics with eBPF, export Prom
 - [ ] Note runtime-specific considerations (containerd vs Docker path resolution)
 
 ## 9. End to end validation
-- [ ] Start vLLM with a small model and enable streaming
-- [ ] Run `tokensiren` against the runtime
-- [ ] Confirm BPF maps are being updated
-- [ ] Confirm `/metrics` exports non zero buckets
+- [x] Start vLLM with a small model and enable streaming
+- [x] Run `tokensiren` against the runtime
+- [x] Confirm BPF maps are being updated
+- [x] Confirm `/metrics` exports non zero buckets
 - [ ] Confirm Grafana dashboard shows TTFT and inter token charts
 
 ## 10. Polishing

@@ -81,7 +81,7 @@ static __always_inline struct stream_key make_stream_key(void)
 SEC("uprobe/request_start")
 int handle_request_start(struct pt_regs *ctx)
 {
-    bpf_printk("tokensiren: request_start hit\n");
+    // bpf_printk("tokensiren: request_start hit\n");
     struct stream_key key = make_stream_key();
     struct stream_state state = {};
     state.start_ns = bpf_ktime_get_ns();
