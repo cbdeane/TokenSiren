@@ -34,12 +34,12 @@ Goal: Attach to a vLLM runtime, collect streaming metrics with eBPF, export Prom
 - [ ] Verify the object loads with `bpftool` or the Go loader once implemented
 
 ## 3. Implement probe attachment in Go
-- [ ] Implement `Attach` in `internal/probes/attach.go`
-- [ ] Load the BPF object with libbpf or cilium ebpf
+- [x] Implement `Attach` in `internal/probes/attach.go`
+- [x] Load the BPF object with libbpf or cilium ebpf
 - [ ] Open BPF maps and keep handles in `Handle`
-- [ ] Attach uprobes for request start, token emit, request end
-- [ ] Provide `Close` that detaches probes and closes maps
-- [ ] Add errors with clear context for missing symbols or binaries
+- [x] Attach uprobes for request start, token emit, request end
+- [x] Provide `Close` that detaches probes and closes maps
+- [x] Add errors with clear context for missing symbols or binaries
 
 ## 4. Implement vLLM runtime resolution
 - [x] Decide how to discover vLLM binary and symbols
@@ -62,7 +62,7 @@ Goal: Attach to a vLLM runtime, collect streaming metrics with eBPF, export Prom
 - [x] BPF object path
 - [x] vLLM binary path
 - [x] symbol names
-- [ ] metrics listen address
+- [x] metrics listen address
 - [ ] Validate inputs and print a clear startup summary
 
 ## 7. Add local run flow
