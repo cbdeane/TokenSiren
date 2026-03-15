@@ -4,12 +4,13 @@ TokenSiren explores low-overhead telemetry collection for LLM inference runtimes
 
 The project separates kernel-resident event collection from userspace metric export, allowing token-level request behavior to be observed with minimal impact on the inference hot path.
 
-The current repository establishes the architecture and map schemas for a first viable pipeline targeting vLLM.
+The current repository provides a working end-to-end prototype targeting vLLM.
+
 ## Status
 
-This repository is not yet feature complete. Several components are stubs and exist to lock in interfaces, map schemas, and attach plans for a first viable path.
+This repo implements a minimal pipeline: attach uprobes to vLLM symbols, collect per-request timing in eBPF maps, and expose metrics via a Prometheus endpoint. The remaining gaps are around production hardening and richer request correlation.
 
-## Problems To Be Solved:
+## Problems to solve
 Modern LLM inference systems expose limited runtime visibility into
 token throughput, latency, and request behavior.
 
@@ -40,7 +41,7 @@ Go control plane
 
 ### Kernel data plane
 
-The eBPF program is defined in `bpf/tracer.c` and `bpf/common.h`. It defines map schemas and placeholder probe handlers for request start, token emit, and request end.
+The eBPF program is defined in `bpf/tracer.c` and `bpf/common.h`. It defines map schemas and probe handlers for request start, token emit, and request end.
 
 Maps currently defined:
 - `active_streams` LRU hash for per stream timing state
@@ -53,7 +54,7 @@ Handlers:
 - `handle_token_emit`
 - `handle_request_end`
 
-These handlers are currently empty and are expected to record timestamps and update `metric_buckets` based on the schemas in `bpf/common.h`.
+These handlers record timestamps, compute simple latency histograms, and update `metric_buckets` based on the schemas in `bpf/common.h`.
 
 ### Userspace control plane
 
@@ -62,26 +63,29 @@ The Go side wires runtime resolution, probe attachment, and metric export.
 Flow today:
 1. `cmd/tokensiren/main.go` builds a `runtime.VLLMConfig`
 2. `internal/runtime/vllm.go` maps that config into a `probes.AttachSpec`
-3. `internal/probes/attach.go` validates the spec and will load the BPF object and attach uprobes in a later iteration
-4. `internal/exporter/prometheus.go` will read BPF maps and expose `/metrics` once implemented
-
-The only concrete logic in userspace right now is config validation and shape definition. Probe loading and map export are intentionally stubbed.
+3. `internal/probes/attach.go` loads the BPF object and attaches uprobes
+4. `internal/exporter/prometheus.go` reads BPF maps and exposes `/metrics`
 
 ### Metrics model
 
 The planned latency histogram buckets live in `internal/metrics/buckets.go` as microsecond boundaries that match the architecture draft.
 
-## Repository Layout
+## Repository layout
 
 ```
 cmd/tokensiren/          entrypoint wiring
 internal/runtime/        runtime resolution for vLLM
 internal/probes/         probe attachment interfaces and handles
-internal/exporter/       Prometheus exporter placeholder
+internal/exporter/       Prometheus exporter
 internal/metrics/        histogram bucket definitions
 bpf/                     eBPF program and shared schema
 dashboards/              Grafana dashboard JSON
 examples/                Prometheus scrape config
+gen/                     build outputs (e.g. tracer.o)
+upstream/                vLLM patch artifacts
+symbol-table-lookup.md   symbol discovery notes
+tokensiren_architecture.md design notes
+run-vllm-on-docker-cpu-only.md local CPU runbook
 ```
 
 ## Why this matters
@@ -93,13 +97,13 @@ This codebase is an example of how to frame a kernel level telemetry pipeline fo
 
 ## Next engineering steps
 
-Near term work is focused on turning the skeleton into a usable vLLM probe pipeline:
-- implement uprobe handlers in `bpf/tracer.c`
-- load and attach probes in `internal/probes/attach.go`
-- export map data to Prometheus in `internal/exporter/prometheus.go`
-- wire concrete vLLM symbols and a BPF object path in `internal/runtime/vllm.go`
+Near term work is focused on tightening the prototype into a robust vLLM probe pipeline:
+- add stable request identifiers and stream correlation (beyond pid-based keys)
+- harden symbol resolution across vLLM versions and build variants
+- add richer labels and metadata on the metrics surface
+- improve error handling and lifecycle management around probe attachment
 
-## Upstream integration notes
+## vLLM stream-end hook prototype
 
 This patch was created while instrumenting vLLM for TokenSiren. It introduces a minimal helper invoked immediately before `[DONE]` is emitted in streaming responses so external observability tooling can detect request completion without relying on Python control-flow heuristics.
 
