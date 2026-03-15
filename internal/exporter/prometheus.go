@@ -123,18 +123,25 @@ func renderMetrics(m *ebpf.Map) (string, error) {
 
     var b strings.Builder
 
-    renderCounter(&b, "tokensiren_requests_total", data[1])
-    renderCounter(&b, "tokensiren_errors_total", data[2])
+    labelPrefix := defaultLabels()
 
-    renderHistogram(&b, "tokensiren_ttft_us", data[3], metrics.LatencyBucketsUS)
-    renderHistogram(&b, "tokensiren_intertoken_us", data[4], metrics.LatencyBucketsUS)
-    renderHistogram(&b, "tokensiren_duration_us", data[5], metrics.LatencyBucketsUS)
-    renderHistogram(&b, "tokensiren_tokens", data[6], metrics.LatencyBucketsUS)
+    renderCounter(&b, "tokensiren_requests_total", data[1], labelPrefix)
+    renderCounter(&b, "tokensiren_errors_total", data[2], labelPrefix)
+
+    renderHistogram(&b, "tokensiren_ttft_us", data[3], metrics.LatencyBucketsUS, labelPrefix)
+    renderHistogram(&b, "tokensiren_intertoken_us", data[4], metrics.LatencyBucketsUS, labelPrefix)
+    renderHistogram(&b, "tokensiren_duration_us", data[5], metrics.LatencyBucketsUS, labelPrefix)
+    renderHistogram(&b, "tokensiren_tokens", data[6], metrics.LatencyBucketsUS, labelPrefix)
 
     return b.String(), nil
 }
 
-func renderCounter(b *strings.Builder, name string, data map[uint32]map[uint8]uint64) {
+func renderCounter(
+    b *strings.Builder,
+    name string,
+    data map[uint32]map[uint8]uint64,
+    labelPrefix string,
+) {
     if data == nil {
         return
     }
@@ -147,7 +154,9 @@ func renderCounter(b *strings.Builder, name string, data map[uint32]map[uint8]ui
             total += v
         }
         b.WriteString(name)
-        b.WriteString("{label_id=\"")
+        b.WriteString("{")
+        b.WriteString(labelPrefix)
+        b.WriteString("label_id=\"")
         b.WriteString(strconv.FormatUint(uint64(labelID), 10))
         b.WriteString("\"} ")
         b.WriteString(strconv.FormatUint(total, 10))
@@ -155,7 +164,13 @@ func renderCounter(b *strings.Builder, name string, data map[uint32]map[uint8]ui
     }
 }
 
-func renderHistogram(b *strings.Builder, name string, data map[uint32]map[uint8]uint64, bounds []uint64) {
+func renderHistogram(
+    b *strings.Builder,
+    name string,
+    data map[uint32]map[uint8]uint64,
+    bounds []uint64,
+    labelPrefix string,
+) {
     if data == nil {
         return
     }
@@ -171,7 +186,9 @@ func renderHistogram(b *strings.Builder, name string, data map[uint32]map[uint8]
             cumulative += count
             sum += float64(bound) * float64(count)
             b.WriteString(name)
-            b.WriteString("_bucket{label_id=\"")
+            b.WriteString("_bucket{")
+            b.WriteString(labelPrefix)
+            b.WriteString("label_id=\"")
             b.WriteString(strconv.FormatUint(uint64(labelID), 10))
             b.WriteString("\",le=\"")
             b.WriteString(strconv.FormatUint(bound, 10))
@@ -180,24 +197,46 @@ func renderHistogram(b *strings.Builder, name string, data map[uint32]map[uint8]
             b.WriteString("\n")
         }
         b.WriteString(name)
-        b.WriteString("_bucket{label_id=\"")
+        b.WriteString("_bucket{")
+        b.WriteString(labelPrefix)
+        b.WriteString("label_id=\"")
         b.WriteString(strconv.FormatUint(uint64(labelID), 10))
         b.WriteString("\",le=\"+Inf\"} ")
         b.WriteString(strconv.FormatUint(cumulative, 10))
         b.WriteString("\n")
 
         b.WriteString(name)
-        b.WriteString("_count{label_id=\"")
+        b.WriteString("_count{")
+        b.WriteString(labelPrefix)
+        b.WriteString("label_id=\"")
         b.WriteString(strconv.FormatUint(uint64(labelID), 10))
         b.WriteString("\"} ")
         b.WriteString(strconv.FormatUint(cumulative, 10))
         b.WriteString("\n")
 
         b.WriteString(name)
-        b.WriteString("_sum{label_id=\"")
+        b.WriteString("_sum{")
+        b.WriteString(labelPrefix)
+        b.WriteString("label_id=\"")
         b.WriteString(strconv.FormatUint(uint64(labelID), 10))
         b.WriteString("\"} ")
         b.WriteString(strconv.FormatFloat(sum, 'f', -1, 64))
         b.WriteString("\n")
     }
+}
+
+func defaultLabels() string {
+    runtimeLabel := os.Getenv("TOKENSIREN_RUNTIME_LABEL")
+    if runtimeLabel == "" {
+        runtimeLabel = "vllm"
+    }
+    hostLabel := os.Getenv("TOKENSIREN_HOST_LABEL")
+    if hostLabel == "" {
+        if host, err := os.Hostname(); err == nil && host != "" {
+            hostLabel = host
+        } else {
+            hostLabel = "unknown"
+        }
+    }
+    return fmt.Sprintf("runtime=\"%s\",host=\"%s\",", runtimeLabel, hostLabel)
 }

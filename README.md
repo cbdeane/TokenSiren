@@ -101,6 +101,7 @@ Near term work is focused on tightening the prototype into a robust vLLM probe p
 - add stable request identifiers and stream correlation (beyond pid-based keys)
 - harden symbol resolution across vLLM versions and build variants
 - add richer labels and metadata on the metrics surface
+- add a model label only when there is a reliable source (avoid polling or a new control plane service in v1)
 - improve error handling and lifecycle management around probe attachment
 
 ## vLLM stream hook patch (start, emit, end)
@@ -133,6 +134,15 @@ https://github.com/vllm-project/vllm/issues/37086
 ## Local runbook (patched vLLM)
 
 1) Apply the upstream patch in your vLLM clone and rebuild the Python extension.
+   - CPU dev rebuild (from vLLM docs):
+     ```bash
+     VLLM_TARGET_DEVICE=cpu uv pip install -e . --no-build-isolation
+     ```
+   - If you are already using a venv without `uv`, use your existing `pip` and keep the same env vars.
 2) Run the vLLM OpenAI API server on CPU (example uses port 8999).
 3) Start TokenSiren with symbols pointing at `vllm/_C.abi3.so` and the three stream hooks.
+   - Optional labels: `TOKENSIREN_RUNTIME_LABEL` (default: `vllm`), `TOKENSIREN_HOST_LABEL` (default: hostname).
 4) Scrape `http://127.0.0.1:2112/metrics` to validate TTFT, intertoken, duration, and tokens.
+
+Notes:
+- The hooks are device-agnostic in theory because they live in the Python/C++ extension module used by the API server. This workflow has only been validated on CPU here; GPU should work if the API server loads the same extension module, but that is not validated in this repo.

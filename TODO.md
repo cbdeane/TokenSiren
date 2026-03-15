@@ -72,7 +72,7 @@ Goal: Attach to a vLLM runtime, collect streaming metrics with eBPF, export Prom
 - [x] vLLM binary path
 - [x] symbol names
 - [x] metrics listen address
-- [ ] Validate inputs and print a clear startup summary
+- [x] Validate inputs and print a clear startup summary
 
 ## 7. Add local run flow
 - [x] Add a minimal runbook section in `README.md`
