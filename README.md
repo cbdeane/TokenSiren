@@ -1,5 +1,7 @@
 # TokenSiren
 
+![TokenSiren Dashboard](assets/grafanadashboard.png)
+
 TokenSiren explores low-overhead telemetry collection for LLM inference runtimes using eBPF uprobes.
 
 The project separates kernel-resident event collection from userspace metric export, allowing token-level request behavior to be observed with minimal impact on the inference hot path.

@@ -32,6 +32,8 @@
           libbpf
           bpftools
           bpftrace
+          prometheus
+          grafana
         ];
         shellHook = ''
           export CC=${pkgs.gcc}/bin/gcc
