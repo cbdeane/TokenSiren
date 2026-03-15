@@ -111,7 +111,7 @@ Files touched (why and where):
 
 - `vllm/csrc/torch_bindings.cpp` and `vllm/csrc/cpu/torch_bindings.cpp`: export no-op C++ symbols `stream_start_hook()`, `stream_emit_hook()`, `stream_end_hook()` and register the corresponding custom ops so each hook is stable and probeable in the C++ extension.
 - `vllm/entrypoints/utils.py`: provides small Python wrappers that invoke the custom ops with a dummy tensor.
-- `vllm/entrypoints/openai/completion/serving.py` and `vllm/entrypoints/openai/chat_completion/serving.py`: call `stream_start_hook()` when streaming begins, `stream_emit_hook()` before each SSE chunk is yielded, and `stream_end_hook()` right before emitting the terminal `[DONE]`.
+- Streaming entrypoints (OpenAI completions, chat completions, responses API, speech-to-text, Anthropic messages): call `stream_start_hook()` when streaming begins, `stream_emit_hook()` before each SSE chunk is yielded, and `stream_end_hook()` right before emitting the terminal `[DONE]`.
 
 Benefit vs Python-only approaches:
 

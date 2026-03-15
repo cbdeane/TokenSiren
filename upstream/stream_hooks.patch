@@ -66,6 +66,194 @@ index d98e987d9..47913ea82 100644
  
    ops.def(
        "persistent_masked_m_silu_mul_quant(Tensor input, Tensor counts, Tensor! "
+diff --git a/vllm/entrypoints/anthropic/serving.py b/vllm/entrypoints/anthropic/serving.py
+index f301ed499..ecfa34b12 100644
+--- a/vllm/entrypoints/anthropic/serving.py
++++ b/vllm/entrypoints/anthropic/serving.py
+@@ -42,6 +42,11 @@ from vllm.entrypoints.openai.engine.protocol import (
+     StreamOptions,
+ )
+ from vllm.entrypoints.openai.models.serving import OpenAIServingModels
++from vllm.entrypoints.utils import (
++    stream_emit_hook,
++    stream_end_hook,
++    stream_start_hook,
++)
+ 
+ if TYPE_CHECKING:
+     from vllm.entrypoints.serve.render.serving import OpenAIServingRender
+@@ -479,6 +484,7 @@ class AnthropicServingMessages(OpenAIServingChat):
+         generator: AsyncGenerator[str, None],
+     ) -> AsyncGenerator[str, None]:
+         try:
++            stream_start_hook()
+ 
+             class _ActiveBlockState:
+                 def __init__(self) -> None:
+@@ -559,6 +565,10 @@ class AnthropicServingMessages(OpenAIServingChat):
+                 state.start(block)
+                 return event
+ 
++            def _emit(event: str) -> str:
++                stream_emit_hook()
++                return event
++
+             async for item in generator:
+                 if item.startswith("data:"):
+                     data_str = item[5:].strip().rstrip("\n")
+@@ -569,8 +579,9 @@ class AnthropicServingMessages(OpenAIServingChat):
+                         data = stop_message.model_dump_json(
+                             exclude_unset=True, exclude_none=True
+                         )
+-                        yield wrap_data_with_event(data, "message_stop")
+-                        yield "data: [DONE]\n\n"
++                        yield _emit(wrap_data_with_event(data, "message_stop"))
++                        stream_end_hook()
++                        yield _emit("data: [DONE]\n\n")
+                     else:
+                         origin_chunk = ChatCompletionStreamResponse.model_validate_json(
+                             data_str
+@@ -595,13 +606,13 @@ class AnthropicServingMessages(OpenAIServingChat):
+                             )
+                             first_item = False
+                             data = chunk.model_dump_json(exclude_unset=True)
+-                            yield wrap_data_with_event(data, "message_start")
++                            yield _emit(wrap_data_with_event(data, "message_start"))
+                             continue
+ 
+                         # last chunk including usage info
+                         if len(origin_chunk.choices) == 0:
+                             for event in stop_active_block():
+-                                yield event
++                                yield _emit(event)
+                             stop_reason = self.stop_reason_map.get(
+                                 finish_reason or "stop"
+                             )
+@@ -618,7 +629,7 @@ class AnthropicServingMessages(OpenAIServingChat):
+                                 ),
+                             )
+                             data = chunk.model_dump_json(exclude_unset=True)
+-                            yield wrap_data_with_event(data, "message_delta")
++                            yield _emit(wrap_data_with_event(data, "message_delta"))
+                             continue
+ 
+                         if origin_chunk.choices[0].finish_reason is not None:
+@@ -633,13 +644,13 @@ class AnthropicServingMessages(OpenAIServingChat):
+                             else:
+                                 if state.block_type != "thinking":
+                                     for event in stop_active_block():
+-                                        yield event
++                                        yield _emit(event)
+                                     start_event = start_block(
+                                         AnthropicContentBlock(
+                                             type="thinking", thinking=""
+                                         )
+                                     )
+-                                    yield start_event
++                                    yield _emit(start_event)
+                                 chunk = AnthropicStreamEvent(
+                                     index=(
+                                         state.block_index
+@@ -653,7 +664,9 @@ class AnthropicServingMessages(OpenAIServingChat):
+                                     ),
+                                 )
+                                 data = chunk.model_dump_json(exclude_unset=True)
+-                                yield wrap_data_with_event(data, "content_block_delta")
++                                yield _emit(
++                                    wrap_data_with_event(data, "content_block_delta")
++                                )
+ 
+                         if origin_chunk.choices[0].delta.content is not None:
+                             if origin_chunk.choices[0].delta.content == "":
+@@ -661,11 +674,11 @@ class AnthropicServingMessages(OpenAIServingChat):
+                             else:
+                                 if state.block_type != "text":
+                                     for event in stop_active_block():
+-                                        yield event
++                                        yield _emit(event)
+                                     start_event = start_block(
+                                         AnthropicContentBlock(type="text", text="")
+                                     )
+-                                    yield start_event
++                                    yield _emit(start_event)
+                                 chunk = AnthropicStreamEvent(
+                                     index=(
+                                         state.block_index
+@@ -679,7 +692,9 @@ class AnthropicServingMessages(OpenAIServingChat):
+                                     ),
+                                 )
+                                 data = chunk.model_dump_json(exclude_unset=True)
+-                                yield wrap_data_with_event(data, "content_block_delta")
++                                yield _emit(
++                                    wrap_data_with_event(data, "content_block_delta")
++                                )
+ 
+                         # tool calls - process all tool calls in the delta
+                         if len(origin_chunk.choices[0].delta.tool_calls) > 0:
+@@ -699,7 +714,7 @@ class AnthropicServingMessages(OpenAIServingChat):
+                                         and tool_name is not None
+                                     ):
+                                         for event in stop_active_block():
+-                                            yield event
++                                            yield _emit(event)
+                                         start_event = start_block(
+                                             AnthropicContentBlock(
+                                                 type="tool_use",
+@@ -708,7 +723,7 @@ class AnthropicServingMessages(OpenAIServingChat):
+                                                 input={},
+                                             )
+                                         )
+-                                        yield start_event
++                                        yield _emit(start_event)
+                                     # Handle initial arguments if present
+                                     if (
+                                         tool_call.function
+@@ -728,8 +743,10 @@ class AnthropicServingMessages(OpenAIServingChat):
+                                             ),
+                                         )
+                                         data = chunk.model_dump_json(exclude_unset=True)
+-                                        yield wrap_data_with_event(
+-                                            data, "content_block_delta"
++                                        yield _emit(
++                                            wrap_data_with_event(
++                                                data, "content_block_delta"
++                                            )
+                                         )
+                                 else:
+                                     # Incremental update - use index to find tool_use_id
+@@ -753,7 +770,7 @@ class AnthropicServingMessages(OpenAIServingChat):
+                                             ),
+                                         )
+                                         data = chunk.model_dump_json(exclude_unset=True)
+-                                        yield wrap_data_with_event(
++                                        yield _emit(
+                                             data, "content_block_delta"
+                                         )
+                             continue
+@@ -766,8 +783,9 @@ class AnthropicServingMessages(OpenAIServingChat):
+                         ),
+                     )
+                     data = error_response.model_dump_json(exclude_unset=True)
+-                    yield wrap_data_with_event(data, "error")
+-                    yield "data: [DONE]\n\n"
++                    yield _emit(wrap_data_with_event(data, "error"))
++                    stream_end_hook()
++                    yield _emit("data: [DONE]\n\n")
+ 
+         except Exception as e:
+             logger.exception("Error in message stream converter.")
+@@ -776,8 +794,9 @@ class AnthropicServingMessages(OpenAIServingChat):
+                 error=AnthropicError(type="internal_error", message=str(e)),
+             )
+             data = error_response.model_dump_json(exclude_unset=True)
+-            yield wrap_data_with_event(data, "error")
+-            yield "data: [DONE]\n\n"
++            yield _emit(wrap_data_with_event(data, "error"))
++            stream_end_hook()
++            yield _emit("data: [DONE]\n\n")
+ 
+     async def count_tokens(
+         self,
 diff --git a/vllm/entrypoints/openai/chat_completion/serving.py b/vllm/entrypoints/openai/chat_completion/serving.py
 index bf8beb9b9..46703747c 100644
 --- a/vllm/entrypoints/openai/chat_completion/serving.py
@@ -219,6 +407,183 @@ index 96cd7797c..c2000f61f 100644
          yield "data: [DONE]\n\n"
  
      def request_output_to_completion_response(
+diff --git a/vllm/entrypoints/openai/responses/serving.py b/vllm/entrypoints/openai/responses/serving.py
+index 6d0041813..8f2b018fd 100644
+--- a/vllm/entrypoints/openai/responses/serving.py
++++ b/vllm/entrypoints/openai/responses/serving.py
+@@ -105,7 +105,12 @@ from vllm.entrypoints.openai.responses.utils import (
+     construct_tool_dicts,
+     extract_tool_types,
+ )
+-from vllm.entrypoints.utils import get_max_tokens
++from vllm.entrypoints.utils import (
++    get_max_tokens,
++    stream_emit_hook,
++    stream_end_hook,
++    stream_start_hook,
++)
+ from vllm.exceptions import VLLMValidationError
+ from vllm.inputs.data import ProcessorInputs, token_inputs
+ from vllm.logger import init_logger
+@@ -1147,14 +1152,21 @@ class OpenAIServingResponses(OpenAIServing):
+         start_index = 0 if starting_after is None else starting_after + 1
+         current_index = start_index
+ 
++        stream_start_hook()
++
++        def _emit(event: StreamingResponsesResponse) -> StreamingResponsesResponse:
++            stream_emit_hook()
++            return event
++
+         while True:
+             new_event_signal.clear()
+ 
+             # Yield existing events from start_index
+             while current_index < len(event_deque):
+                 event = event_deque[current_index]
+-                yield event
++                yield _emit(event)
+                 if getattr(event, "type", "unknown") == "response.completed":
++                    stream_end_hook()
+                     return
+                 current_index += 1
+ 
+@@ -1857,7 +1869,12 @@ class OpenAIServingResponses(OpenAIServing):
+             sequence_number += 1
+             return event
+ 
++        def _emit(event: StreamingResponsesResponse) -> StreamingResponsesResponse:
++            stream_emit_hook()
++            return event
++
+         async with AsyncExitStack() as exit_stack:
++            stream_start_hook()
+             if self.use_harmony:
+                 # TODO: in streaming, we noticed this bug:
+                 # https://github.com/vllm-project/vllm/issues/25697
+@@ -1876,18 +1893,22 @@ class OpenAIServingResponses(OpenAIServing):
+                 status="in_progress",
+                 usage=None,
+             ).model_dump()
+-            yield _increment_sequence_number_and_return(
+-                ResponseCreatedEvent(
+-                    type="response.created",
+-                    sequence_number=-1,
+-                    response=initial_response,
++            yield _emit(
++                _increment_sequence_number_and_return(
++                    ResponseCreatedEvent(
++                        type="response.created",
++                        sequence_number=-1,
++                        response=initial_response,
++                    )
+                 )
+             )
+-            yield _increment_sequence_number_and_return(
+-                ResponseInProgressEvent(
+-                    type="response.in_progress",
+-                    sequence_number=-1,
+-                    response=initial_response,
++            yield _emit(
++                _increment_sequence_number_and_return(
++                    ResponseInProgressEvent(
++                        type="response.in_progress",
++                        sequence_number=-1,
++                        response=initial_response,
++                    )
+                 )
+             )
+ 
+@@ -1903,12 +1924,15 @@ class OpenAIServingResponses(OpenAIServing):
+                     created_time,
+                     _increment_sequence_number_and_return,
+                 ):
+-                    yield event_data
++                    yield _emit(event_data)
+             except GenerationError as e:
+                 error_json = self._convert_generation_error_to_streaming_response(e)
+-                yield _increment_sequence_number_and_return(
+-                    TypeAdapter(StreamingResponsesResponse).validate_json(error_json)
++                yield _emit(
++                    _increment_sequence_number_and_return(
++                        TypeAdapter(StreamingResponsesResponse).validate_json(error_json)
++                    )
+                 )
++                stream_end_hook()
+                 return
+ 
+             async def empty_async_generator():
+@@ -1927,10 +1951,13 @@ class OpenAIServingResponses(OpenAIServing):
+                 request_metadata,
+                 created_time=created_time,
+             )
+-            yield _increment_sequence_number_and_return(
+-                ResponseCompletedEvent(
+-                    type="response.completed",
+-                    sequence_number=-1,
+-                    response=final_response,
++            yield _emit(
++                _increment_sequence_number_and_return(
++                    ResponseCompletedEvent(
++                        type="response.completed",
++                        sequence_number=-1,
++                        response=final_response,
++                    )
+                 )
+             )
++            stream_end_hook()
+diff --git a/vllm/entrypoints/openai/speech_to_text/speech_to_text.py b/vllm/entrypoints/openai/speech_to_text/speech_to_text.py
+index 31902bfa7..cf3772f4c 100644
+--- a/vllm/entrypoints/openai/speech_to_text/speech_to_text.py
++++ b/vllm/entrypoints/openai/speech_to_text/speech_to_text.py
+@@ -36,7 +36,12 @@ from vllm.entrypoints.openai.speech_to_text.protocol import (
+     TranslationStreamResponse,
+ )
+ from vllm.entrypoints.openai.speech_to_text.utils import load_audio_bytes
+-from vllm.entrypoints.utils import get_max_tokens
++from vllm.entrypoints.utils import (
++    get_max_tokens,
++    stream_emit_hook,
++    stream_end_hook,
++    stream_start_hook,
++)
+ from vllm.exceptions import VLLMValidationError
+ from vllm.inputs import EncoderDecoderInputs, ProcessorInputs
+ from vllm.logger import init_logger
+@@ -596,6 +601,7 @@ class OpenAISpeechToText(OpenAIServing):
+         )
+ 
+         try:
++            stream_start_hook()
+             for result_generator in list_result_generator:
+                 async for res in result_generator:
+                     # On first result.
+@@ -649,6 +655,7 @@ class OpenAISpeechToText(OpenAIServing):
+                         )
+ 
+                     data = chunk.model_dump_json(exclude_unset=True)
++                    stream_emit_hook()
+                     yield f"data: {data}\n\n"
+ 
+             # Once the final token is handled, if stream_options.include_usage
+@@ -671,6 +678,7 @@ class OpenAISpeechToText(OpenAIServing):
+                 final_usage_data = final_usage_chunk.model_dump_json(
+                     exclude_unset=True, exclude_none=True
+                 )
++                stream_emit_hook()
+                 yield f"data: {final_usage_data}\n\n"
+ 
+             # report to FastAPI middleware aggregate usage across all choices
+@@ -683,6 +691,9 @@ class OpenAISpeechToText(OpenAIServing):
+         except Exception as e:
+             logger.exception("Error in %s stream generator.", self.task_type)
+             data = self.create_streaming_error_response(e)
++            stream_emit_hook()
+             yield f"data: {data}\n\n"
+         # Send the final done message after all response.n are finished
++        stream_end_hook()
++        stream_emit_hook()
+         yield "data: [DONE]\n\n"
 diff --git a/vllm/entrypoints/utils.py b/vllm/entrypoints/utils.py
 index 9550a41bb..fa5e7a43e 100644
 --- a/vllm/entrypoints/utils.py
