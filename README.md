@@ -6,9 +6,7 @@ It captures request lifecycle and token emission telemetry directly from the inf
 
 ![TokenSiren Dashboard](assets/grafana-dashboard.png)
 
-TokenSiren instruments LLM inference runtimes at the kernel level to measure request lifecycle events, token throughput, and latency distributions without modifying the serving hot path.
-
-The project separates kernel-resident event collection from userspace metric export, allowing token-level request behavior to be observed with minimal impact on the inference hot path.
+TokenSiren instruments LLM inference runtimes at the kernel level to measure request lifecycle events, token throughput, and latency distributions without compromising the serving hot path.
 
 The current repository provides a working end-to-end prototype targeting vLLM.
 
