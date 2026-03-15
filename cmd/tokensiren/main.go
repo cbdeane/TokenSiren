@@ -1,6 +1,8 @@
 package main
 
 import (
+    "errors"
+    "fmt"
     "log"
     "os"
     "strings"
@@ -19,18 +21,20 @@ func main() {
     if metricsAddr == "" {
         metricsAddr = ":2112"
     }
-    if strings.HasPrefix(metricsAddr, ":") {
-        log.Printf("TokenSiren started on port %s", metricsAddr[1:])
-    } else {
-        log.Printf("TokenSiren started on %s", metricsAddr)
-    }
-
     runtimeCfg := runtime.VLLMConfig{
         BinaryPath:   os.Getenv("TOKENSIREN_BINARY_PATH"),
         BPFObject:    os.Getenv("TOKENSIREN_BPF_OBJECT"),
         RequestStart: os.Getenv("TOKENSIREN_REQUEST_START"),
         TokenEmit:    os.Getenv("TOKENSIREN_TOKEN_EMIT"),
         RequestEnd:   os.Getenv("TOKENSIREN_REQUEST_END"),
+    }
+    if err := validateConfig(runtimeCfg); err != nil {
+        log.Fatalf("invalid config: %v", err)
+    }
+    if strings.HasPrefix(metricsAddr, ":") {
+        log.Printf("TokenSiren started on port %s", metricsAddr[1:])
+    } else {
+        log.Printf("TokenSiren started on %s", metricsAddr)
     }
     attachSpec, err := runtime.ResolveVLLM(runtimeCfg)
     if err != nil {
@@ -80,6 +84,41 @@ func loadDotEnv(path string) error {
         if _, exists := os.LookupEnv(key); !exists {
             _ = os.Setenv(key, val)
         }
+    }
+    return nil
+}
+
+func validateConfig(cfg runtime.VLLMConfig) error {
+    if cfg.BinaryPath == "" {
+        return errors.New("TOKENSIREN_BINARY_PATH is required")
+    }
+    if cfg.BPFObject == "" {
+        return errors.New("TOKENSIREN_BPF_OBJECT is required")
+    }
+    if cfg.RequestStart == "" {
+        return errors.New("TOKENSIREN_REQUEST_START is required")
+    }
+    if cfg.TokenEmit == "" {
+        return errors.New("TOKENSIREN_TOKEN_EMIT is required")
+    }
+    if cfg.RequestEnd == "" {
+        return errors.New("TOKENSIREN_REQUEST_END is required")
+    }
+    if err := mustExist(cfg.BinaryPath); err != nil {
+        return err
+    }
+    if err := mustExist(cfg.BPFObject); err != nil {
+        return err
+    }
+    return nil
+}
+
+func mustExist(path string) error {
+    if _, err := os.Stat(path); err != nil {
+        if os.IsNotExist(err) {
+            return fmt.Errorf("path not found: %s", path)
+        }
+        return fmt.Errorf("path check failed for %s: %w", path, err)
     }
     return nil
 }
