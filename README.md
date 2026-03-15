@@ -122,7 +122,7 @@ Benefit vs Python-only approaches:
 
 The patch is stored here:
 
-- `./upstream/stream_end_hook.patch`
+- `./upstream/stream_hooks.patch`
 
 Issue reference (vLLM):
 

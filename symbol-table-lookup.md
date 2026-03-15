@@ -120,9 +120,9 @@ The following mangled symbols **did** fire under `bpftrace` with the EngineCore 
 
 ## Upstream patch: stream_end_hook (request completion)
 
-I added a small upstream patch that exposes a stable, probeable request-completion hook in vLLM. The patch is saved in this repo at:
+I added a small upstream patch that exposes stable, probeable stream hooks in vLLM. The patch is saved in this repo at:
 
-- `./upstream/stream_end_hook.patch`
+- `./upstream/stream_hooks.patch`
 
 ### What the patch does
 
@@ -136,9 +136,9 @@ This provides a stable uprobe target at the exact end of a streaming request.
 
 ### Probe validation notes
 
-The `stream_end_hook` symbol is introduced by this patch (it does not exist in stock vLLM). The upstream diff is here:
+The `stream_*_hook` symbols are introduced by this patch (they do not exist in stock vLLM). The upstream diff is here:
 
-- `./upstream/stream_end_hook.patch`
+- `./upstream/stream_hooks.patch`
 
 On CPU builds, the symbols are present in the vLLM extension module:
 
