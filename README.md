@@ -1,6 +1,6 @@
 # TokenSiren
 
-![TokenSiren Dashboard](assets/grafanadashboard.png)
+![TokenSiren Dashboard](assets/grafana-dashboard.png)
 
 TokenSiren explores low-overhead telemetry collection for LLM inference runtimes using eBPF uprobes.
 
