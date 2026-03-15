@@ -103,20 +103,22 @@ Near term work is focused on tightening the prototype into a robust vLLM probe p
 - add richer labels and metadata on the metrics surface
 - improve error handling and lifecycle management around probe attachment
 
-## vLLM stream-end hook patch 
+## vLLM stream hook patch (start, emit, end)
 
-This patch was created while instrumenting vLLM for TokenSiren. It introduces a minimal helper invoked immediately before `[DONE]` is emitted in streaming responses so external observability tooling can detect request completion without relying on Python control-flow heuristics.
+This patch was created while instrumenting vLLM for TokenSiren. It introduces minimal helpers invoked at stream start, per-chunk emit, and immediately before `[DONE]` so external observability tooling can detect request boundaries without relying on Python control-flow heuristics.
 
 Files touched (why and where):
 
-- `vllm/csrc/torch_bindings.cpp` and `vllm/csrc/cpu/torch_bindings.cpp`: export a no-op `stream_end_hook()` and register `stream_end_hook(Tensor) -> ()` so the symbol is stable and probeable in the C++ extension.
-- Streaming entrypoints (OpenAI, Anthropic, speech-to-text): call `torch.ops._C.stream_end_hook(torch.empty(0))` immediately before yielding the terminal `[DONE]` event, which provides a precise end-of-stream boundary without parsing response payloads.
+- `vllm/csrc/torch_bindings.cpp` and `vllm/csrc/cpu/torch_bindings.cpp`: export no-op C++ symbols `stream_start_hook()`, `stream_emit_hook()`, `stream_end_hook()` and register the corresponding custom ops so each hook is stable and probeable in the C++ extension.
+- `vllm/entrypoints/utils.py`: provides small Python wrappers that invoke the custom ops with a dummy tensor.
+- `vllm/entrypoints/openai/completion/serving.py` and `vllm/entrypoints/openai/chat_completion/serving.py`: call `stream_start_hook()` when streaming begins, `stream_emit_hook()` before each SSE chunk is yielded, and `stream_end_hook()` right before emitting the terminal `[DONE]`.
 
 Benefit vs Python-only approaches:
 
 - avoids brittle “[DONE]” parsing or generator lifecycle hooks in external tooling
-- provides a single, stable uprobe target at request completion
-- keeps overhead minimal (no additional Python instrumentation logic)
+- provides stable uprobe targets for start, token emit, and request completion
+- minimizes overhead (one no-op op call per event)
+- keeps all three events in the API server process, avoiding cross-process correlation issues
 
 The patch is stored here:
 
@@ -127,3 +129,10 @@ Issue reference (vLLM):
 ```
 https://github.com/vllm-project/vllm/issues/37086
 ```
+
+## Local runbook (patched vLLM)
+
+1) Apply the upstream patch in your vLLM clone and rebuild the Python extension.
+2) Run the vLLM OpenAI API server on CPU (example uses port 8999).
+3) Start TokenSiren with symbols pointing at `vllm/_C.abi3.so` and the three stream hooks.
+4) Scrape `http://127.0.0.1:2112/metrics` to validate TTFT, intertoken, duration, and tokens.

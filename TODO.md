@@ -34,8 +34,8 @@ Goal: Attach to a vLLM runtime, collect streaming metrics with eBPF, export Prom
 - [x] Delete from `active_streams` and `conn_index` if used
 - [x] Add helper for bucket selection in BPF to match `internal/metrics/buckets.go`
 - [x] Decide map types for `metric_buckets` and `active_streams` in v1
-  - [ ] Find a per-token/chunk emission symbol so `handle_token_emit` fires per token
-  - [ ] Find a true request/stream end symbol so duration/tokens-per-request are correct
+  - [x] Find a per-token/chunk emission symbol so `handle_token_emit` fires per token
+  - [x] Find a true request/stream end symbol so duration/tokens-per-request are correct
 
 ## 2. Compile and package the BPF object
 - [x] Add a build step in `Makefile` to compile `bpf/tracer.c` into a BPF object
@@ -75,7 +75,7 @@ Goal: Attach to a vLLM runtime, collect streaming metrics with eBPF, export Prom
 - [ ] Validate inputs and print a clear startup summary
 
 ## 7. Add local run flow
-- [ ] Add a minimal runbook section in `README.md`
+- [x] Add a minimal runbook section in `README.md`
 - [ ] Build steps
 - [ ] Example config
 - [ ] Required kernel features
@@ -111,3 +111,6 @@ Goal: Attach to a vLLM runtime, collect streaming metrics with eBPF, export Prom
 - [ ] `tokensiren` runs on a clean machine with only config changes
 - [ ] Grafana dashboard shows live TTFT, inter token, duration, and token count
 - [ ] CPU overhead remains low for a single runtime target
+
+## 12. Follow-up cleanup
+- [ ] Revisit `.env.example` once the Kubernetes/DaemonSet flow is finalized

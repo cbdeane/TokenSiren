@@ -126,9 +126,11 @@ I added a small upstream patch that exposes a stable, probeable request-completi
 
 ### What the patch does
 
-- Adds a no-op C++ symbol `stream_end_hook()` exported from the vLLM CPU extension.
-- Registers a custom op `stream_end_hook(Tensor dummy) -> ()`.
-- Calls `torch.ops._C.stream_end_hook(torch.empty(0))` in the streaming generators right before emitting the terminal `[DONE]` event (OpenAI, Anthropic, and speech-to-text entrypoints).
+- Adds no-op C++ symbols `stream_start_hook()`, `stream_emit_hook()`, and `stream_end_hook()` exported from the vLLM CPU extension.
+- Registers custom ops `stream_start_hook(Tensor) -> ()`, `stream_emit_hook(Tensor) -> ()`, and `stream_end_hook(Tensor) -> ()`.
+- Calls `torch.ops._C.stream_start_hook(torch.empty(0))` at the beginning of streaming generators.
+- Calls `torch.ops._C.stream_emit_hook(torch.empty(0))` immediately before emitting each streaming SSE chunk.
+- Calls `torch.ops._C.stream_end_hook(torch.empty(0))` right before emitting the terminal `[DONE]` event.
 
 This provides a stable uprobe target at the exact end of a streaming request.
 
@@ -138,10 +140,20 @@ The `stream_end_hook` symbol is introduced by this patch (it does not exist in s
 
 - `./upstream/stream_end_hook.patch`
 
-On CPU builds, the symbol is present in the vLLM extension module:
+On CPU builds, the symbols are present in the vLLM extension module:
 
 - `/home/char0/dev/vllm/vllm/_C.abi3.so`
-- `nm -D --defined-only` shows `stream_end_hook` and `stream_end_hook_op(at::Tensor const&)`.
+- `nm -D --defined-only` shows `stream_start_hook`, `stream_emit_hook`, and `stream_end_hook`.
+
+### Preferred vLLM mapping for TokenSiren (patched build)
+
+For the patched vLLM build, use the stream hook symbols directly so all events are emitted in the API server process:
+
+- `RequestStart`: `stream_start_hook`
+- `TokenEmit`: `stream_emit_hook`
+- `RequestEnd`: `stream_end_hook`
+
+This avoids cross-process keying issues between EngineCore and the API server and produces correct TTFT/intertoken/duration/tokens metrics.
 
 Uprobe example:
 
