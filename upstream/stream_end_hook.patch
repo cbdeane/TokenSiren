@@ -1,0 +1,217 @@
+diff --git a/csrc/cpu/torch_bindings.cpp b/csrc/cpu/torch_bindings.cpp
+index d011ff038..6fbfa83c4 100644
+--- a/csrc/cpu/torch_bindings.cpp
++++ b/csrc/cpu/torch_bindings.cpp
+@@ -8,6 +8,10 @@
+ // libraries use different ISAs.
+ #define TORCH_EXTENSION_NAME _C
+ 
++extern "C" __attribute__((noinline)) void stream_end_hook() {}
++
++static void stream_end_hook_op(const torch::Tensor&) { stream_end_hook(); }
++
+ std::string init_cpu_threads_env(const std::string& cpu_ids);
+ 
+ void release_dnnl_matmul_handler(int64_t handler);
+@@ -128,6 +132,8 @@ void cpu_fused_moe(torch::Tensor& output, const torch::Tensor& input,
+ 
+ TORCH_LIBRARY_EXPAND(TORCH_EXTENSION_NAME, ops) {
+   // vLLM custom ops
++  ops.def("stream_end_hook(Tensor dummy) -> ()");
++  ops.impl("stream_end_hook", torch::kCPU, &stream_end_hook_op);
+ 
+   ops.def(
+       "dynamic_4bit_int_moe("
+diff --git a/csrc/torch_bindings.cpp b/csrc/torch_bindings.cpp
+index d98e987d9..820ba4d50 100644
+--- a/csrc/torch_bindings.cpp
++++ b/csrc/torch_bindings.cpp
+@@ -6,6 +6,10 @@
+ #include <torch/library.h>
+ #include <torch/version.h>
+ 
++extern "C" __attribute__((noinline)) void stream_end_hook() {}
++
++static void stream_end_hook_op(const torch::Tensor&) { stream_end_hook(); }
++
+ // Note on op signatures:
+ // The X_meta signatures are for the meta functions corresponding to op X.
+ // They must be kept in sync with the signature for X. Generally, only
+@@ -19,6 +23,8 @@
+ TORCH_LIBRARY_EXPAND(TORCH_EXTENSION_NAME, ops) {
+   // vLLM custom ops
+   //
++  ops.def("stream_end_hook(Tensor dummy) -> ()");
++  ops.impl("stream_end_hook", torch::kCPU, &stream_end_hook_op);
+ 
+   ops.def(
+       "persistent_masked_m_silu_mul_quant(Tensor input, Tensor counts, Tensor! "
+diff --git a/vllm/entrypoints/anthropic/serving.py b/vllm/entrypoints/anthropic/serving.py
+index f301ed499..889cca099 100644
+--- a/vllm/entrypoints/anthropic/serving.py
++++ b/vllm/entrypoints/anthropic/serving.py
+@@ -42,6 +42,7 @@ from vllm.entrypoints.openai.engine.protocol import (
+     StreamOptions,
+ )
+ from vllm.entrypoints.openai.models.serving import OpenAIServingModels
++from vllm.entrypoints.utils import stream_end_hook
+ 
+ if TYPE_CHECKING:
+     from vllm.entrypoints.serve.render.serving import OpenAIServingRender
+@@ -570,6 +571,7 @@ class AnthropicServingMessages(OpenAIServingChat):
+                             exclude_unset=True, exclude_none=True
+                         )
+                         yield wrap_data_with_event(data, "message_stop")
++                        stream_end_hook()
+                         yield "data: [DONE]\n\n"
+                     else:
+                         origin_chunk = ChatCompletionStreamResponse.model_validate_json(
+@@ -767,6 +769,7 @@ class AnthropicServingMessages(OpenAIServingChat):
+                     )
+                     data = error_response.model_dump_json(exclude_unset=True)
+                     yield wrap_data_with_event(data, "error")
++                    stream_end_hook()
+                     yield "data: [DONE]\n\n"
+ 
+         except Exception as e:
+@@ -777,6 +780,7 @@ class AnthropicServingMessages(OpenAIServingChat):
+             )
+             data = error_response.model_dump_json(exclude_unset=True)
+             yield wrap_data_with_event(data, "error")
++            stream_end_hook()
+             yield "data: [DONE]\n\n"
+ 
+     async def count_tokens(
+diff --git a/vllm/entrypoints/openai/chat_completion/serving.py b/vllm/entrypoints/openai/chat_completion/serving.py
+index bf8beb9b9..1b635bc56 100644
+--- a/vllm/entrypoints/openai/chat_completion/serving.py
++++ b/vllm/entrypoints/openai/chat_completion/serving.py
+@@ -60,7 +60,11 @@ from vllm.entrypoints.openai.parser.harmony_utils import (
+     parse_chat_output,
+ )
+ from vllm.entrypoints.openai.utils import maybe_filter_parallel_tool_calls
+-from vllm.entrypoints.utils import get_max_tokens, should_include_usage
++from vllm.entrypoints.utils import (
++    get_max_tokens,
++    should_include_usage,
++    stream_end_hook,
++)
+ from vllm.inputs.data import ProcessorInputs
+ from vllm.logger import init_logger
+ from vllm.logprobs import Logprob
+@@ -576,6 +580,7 @@ class OpenAIServingChat(OpenAIServing):
+             logger.exception("Error in tool parser creation.")
+             data = self.create_streaming_error_response(e)
+             yield f"data: {data}\n\n"
++            stream_end_hook()
+             yield "data: [DONE]\n\n"
+             return
+ 
+@@ -1265,6 +1270,7 @@ class OpenAIServingChat(OpenAIServing):
+             data = self.create_streaming_error_response(e)
+             yield f"data: {data}\n\n"
+         # Send the final done message after all response.n are finished
++        stream_end_hook()
+         yield "data: [DONE]\n\n"
+ 
+     async def chat_completion_full_generator(
+diff --git a/vllm/entrypoints/openai/completion/serving.py b/vllm/entrypoints/openai/completion/serving.py
+index 96cd7797c..babeb9123 100644
+--- a/vllm/entrypoints/openai/completion/serving.py
++++ b/vllm/entrypoints/openai/completion/serving.py
+@@ -31,7 +31,11 @@ from vllm.entrypoints.openai.engine.serving import (
+     clamp_prompt_logprobs,
+ )
+ from vllm.entrypoints.openai.models.serving import OpenAIServingModels
+-from vllm.entrypoints.utils import get_max_tokens, should_include_usage
++from vllm.entrypoints.utils import (
++    get_max_tokens,
++    should_include_usage,
++    stream_end_hook,
++)
+ from vllm.exceptions import VLLMValidationError
+ from vllm.inputs.data import ProcessorInputs
+ from vllm.logger import init_logger
+@@ -259,6 +263,7 @@ class OpenAIServingCompletion(OpenAIServing):
+ 
+             async def fake_stream_generator() -> AsyncGenerator[str, None]:
+                 yield f"data: {response_json}\n\n"
++                stream_end_hook()
+                 yield "data: [DONE]\n\n"
+ 
+             return fake_stream_generator()
+@@ -450,6 +455,7 @@ class OpenAIServingCompletion(OpenAIServing):
+             logger.exception("Error in completion stream generator.")
+             data = self.create_streaming_error_response(e)
+             yield f"data: {data}\n\n"
++        stream_end_hook()
+         yield "data: [DONE]\n\n"
+ 
+     def request_output_to_completion_response(
+diff --git a/vllm/entrypoints/openai/speech_to_text/speech_to_text.py b/vllm/entrypoints/openai/speech_to_text/speech_to_text.py
+index 31902bfa7..84e88c9eb 100644
+--- a/vllm/entrypoints/openai/speech_to_text/speech_to_text.py
++++ b/vllm/entrypoints/openai/speech_to_text/speech_to_text.py
+@@ -36,7 +36,7 @@ from vllm.entrypoints.openai.speech_to_text.protocol import (
+     TranslationStreamResponse,
+ )
+ from vllm.entrypoints.openai.speech_to_text.utils import load_audio_bytes
+-from vllm.entrypoints.utils import get_max_tokens
++from vllm.entrypoints.utils import get_max_tokens, stream_end_hook
+ from vllm.exceptions import VLLMValidationError
+ from vllm.inputs import EncoderDecoderInputs, ProcessorInputs
+ from vllm.logger import init_logger
+@@ -685,4 +685,5 @@ class OpenAISpeechToText(OpenAIServing):
+             data = self.create_streaming_error_response(e)
+             yield f"data: {data}\n\n"
+         # Send the final done message after all response.n are finished
++        stream_end_hook()
+         yield "data: [DONE]\n\n"
+diff --git a/vllm/entrypoints/utils.py b/vllm/entrypoints/utils.py
+index 9550a41bb..5933c169f 100644
+--- a/vllm/entrypoints/utils.py
++++ b/vllm/entrypoints/utils.py
+@@ -9,8 +9,13 @@ from argparse import Namespace
+ from http import HTTPStatus
+ from logging import Logger
+ from string import Template
++from typing import Final
+ 
+ import regex as re
++try:
++    import torch
++except ImportError:  # pragma: no cover
++    torch = None
+ from fastapi import Request
+ from fastapi.responses import JSONResponse, StreamingResponse
+ from starlette.background import BackgroundTask, BackgroundTasks
+@@ -30,6 +35,9 @@ from vllm.utils.argparse_utils import FlexibleArgumentParser
+ 
+ logger = init_logger(__name__)
+ 
++_STREAM_END_OP_NAMESPACE: Final[str] = "_C"
++_STREAM_END_OP_NAME: Final[str] = "stream_end_hook"
++
+ VLLM_SUBCMD_PARSER_EPILOG = (
+     "For full list:            vllm {subcmd} --help=all\n"
+     "For a section:            vllm {subcmd} --help=ModelConfig    (case-insensitive)\n"  # noqa: E501
+@@ -38,6 +46,19 @@ VLLM_SUBCMD_PARSER_EPILOG = (
+ )
+ 
+ 
++def stream_end_hook() -> None:
++    """Invoke the optional stream end hook if it is available."""
++    if torch is None:
++        return
++
++    if not hasattr(torch.ops, _STREAM_END_OP_NAMESPACE):
++        return
++
++    op_namespace = getattr(torch.ops, _STREAM_END_OP_NAMESPACE)
++    if hasattr(op_namespace, _STREAM_END_OP_NAME):
++        getattr(op_namespace, _STREAM_END_OP_NAME)(torch.empty(0))
++
++
+ async def listen_for_disconnect(request: Request) -> None:
+     """Returns if a disconnect message is received"""
+     while True:

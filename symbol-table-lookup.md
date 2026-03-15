@@ -117,3 +117,36 @@ The following mangled symbols **did** fire under `bpftrace` with the EngineCore 
 
 - These symbols are compute kernels; higher-level request boundaries likely require different hooks (e.g., scheduler or request lifecycle code in vLLM Python/C++ layers).
 - If symbols change across vLLM versions, repeat the same process: map loaded libs, scan with `strings`, then verify with `nm -a`.
+
+## Upstream patch: stream_end_hook (request completion)
+
+I added a small upstream patch that exposes a stable, probeable request-completion hook in vLLM. The patch is saved in this repo at:
+
+- `./upstream/stream_end_hook.patch`
+
+### What the patch does
+
+- Adds a no-op C++ symbol `stream_end_hook()` exported from the vLLM CPU extension.
+- Registers a custom op `stream_end_hook(Tensor dummy) -> ()`.
+- Calls `torch.ops._C.stream_end_hook(torch.empty(0))` in the streaming generators right before emitting the terminal `[DONE]` event (OpenAI, Anthropic, and speech-to-text entrypoints).
+
+This provides a stable uprobe target at the exact end of a streaming request.
+
+### Probe validation notes
+
+The `stream_end_hook` symbol is introduced by this patch (it does not exist in stock vLLM). The upstream diff is here:
+
+- `./upstream/stream_end_hook.patch`
+
+On CPU builds, the symbol is present in the vLLM extension module:
+
+- `/home/char0/dev/vllm/vllm/_C.abi3.so`
+- `nm -D --defined-only` shows `stream_end_hook` and `stream_end_hook_op(at::Tensor const&)`.
+
+Uprobe example:
+
+```
+sudo bpftrace -e 'uprobe:/home/char0/dev/vllm/vllm/_C.abi3.so:stream_end_hook { printf("stream_end_hook\n"); }'
+```
+
+If the symbol does not fire, verify that the process running the streaming generator has `_C.abi3.so` mapped in `/proc/<PID>/maps`.

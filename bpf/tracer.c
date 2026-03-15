@@ -131,7 +131,6 @@ int handle_request_end(struct pt_regs *ctx)
 
     __u32 tokens = state->token_count;
     inc_metric(state->label_id, METRIC_TOKENS, bucket_for_us(tokens));
-    inc_metric(state->label_id, METRIC_REQ_TOTAL, 0);
 
     bpf_map_delete_elem(&active_streams, &key);
     return 0;

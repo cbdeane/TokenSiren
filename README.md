@@ -98,3 +98,28 @@ Near term work is focused on turning the skeleton into a usable vLLM probe pipel
 - load and attach probes in `internal/probes/attach.go`
 - export map data to Prometheus in `internal/exporter/prometheus.go`
 - wire concrete vLLM symbols and a BPF object path in `internal/runtime/vllm.go`
+
+## Upstream integration notes
+
+This patch was created while instrumenting vLLM for TokenSiren. It introduces a minimal helper invoked immediately before `[DONE]` is emitted in streaming responses so external observability tooling can detect request completion without relying on Python control-flow heuristics.
+
+Files touched (why and where):
+
+- `vllm/csrc/torch_bindings.cpp` and `vllm/csrc/cpu/torch_bindings.cpp`: export a no-op `stream_end_hook()` and register `stream_end_hook(Tensor) -> ()` so the symbol is stable and probeable in the C++ extension.
+- Streaming entrypoints (OpenAI, Anthropic, speech-to-text): call `torch.ops._C.stream_end_hook(torch.empty(0))` immediately before yielding the terminal `[DONE]` event, which provides a precise end-of-stream boundary without parsing response payloads.
+
+Benefit vs Python-only approaches:
+
+- avoids brittle “[DONE]” parsing or generator lifecycle hooks in external tooling
+- provides a single, stable uprobe target at request completion
+- keeps overhead minimal (no additional Python instrumentation logic)
+
+The patch is stored here:
+
+- `./upstream/stream_end_hook.patch`
+
+Issue reference (vLLM):
+
+```
+https://github.com/vllm-project/vllm/issues/37086
+```
