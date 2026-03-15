@@ -144,7 +144,8 @@ https://github.com/vllm-project/vllm/issues/37086
 2) Run the vLLM OpenAI API server on CPU (example uses port 8999).
 3) Start TokenSiren with symbols pointing at `vllm/_C.abi3.so` and the three stream hooks.
    - Optional labels: `TOKENSIREN_RUNTIME_LABEL` (default: `vllm`), `TOKENSIREN_HOST_LABEL` (default: hostname).
-4) Scrape `http://127.0.0.1:2112/metrics` to validate TTFT, intertoken, duration, and tokens.
+4) Scrape `http://<IP ADDRESS>/metrics` to validate TTFT, intertoken, duration, and tokens.
+5) Point Prometheus at the TokenSiren metrics endpoint (see `examples/prometheus.yml`) and add that Prometheus instance as a Grafana data source.
 
 Notes:
 - The hooks are device-agnostic in theory because they live in the Python/C++ extension module used by the API server. This workflow has only been validated on CPU here; GPU should work if the API server loads the same extension module, but that is not validated in this repo.

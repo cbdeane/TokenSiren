@@ -1,3 +1,5 @@
 .env
 flake.lock
 .envrc
+data/
+.direnv/
