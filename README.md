@@ -103,7 +103,7 @@ Near term work is focused on tightening the prototype into a robust vLLM probe p
 - add richer labels and metadata on the metrics surface
 - improve error handling and lifecycle management around probe attachment
 
-## vLLM stream-end hook prototype
+## vLLM stream-end hook 
 
 This patch was created while instrumenting vLLM for TokenSiren. It introduces a minimal helper invoked immediately before `[DONE]` is emitted in streaming responses so external observability tooling can detect request completion without relying on Python control-flow heuristics.
 
