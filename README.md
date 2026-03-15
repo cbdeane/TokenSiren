@@ -83,9 +83,8 @@ dashboards/              Grafana dashboard JSON
 examples/                Prometheus scrape config
 gen/                     build outputs (e.g. tracer.o)
 upstream/                vLLM patch artifacts
-symbol-table-lookup.md   symbol discovery notes
-tokensiren_architecture.md design notes
-run-vllm-on-docker-cpu-only.md local CPU runbook
+docs/symbol-table-lookup.md   symbol discovery notes
+docs/tokensiren_architecture.md design notes
 ```
 
 ## Why this matters
@@ -152,6 +151,9 @@ https://github.com/vllm-project/vllm/issues/37086
    - Optional labels: `TOKENSIREN_RUNTIME_LABEL` (default: `vllm`), `TOKENSIREN_HOST_LABEL` (default: hostname).
 4) Scrape `http://<IP ADDRESS>/metrics` to validate TTFT, intertoken, duration, and tokens.
 5) Point Prometheus at the TokenSiren metrics endpoint (see `examples/prometheus.yml`) and add that Prometheus instance as a Grafana data source.
+
+Config reference:
+- `docs/.env.example` (env var template)
 
 Notes:
 - The hooks are device-agnostic in theory because they live in the Python/C++ extension module used by the API server. This workflow has only been validated on CPU here; GPU should work if the API server loads the same extension module, but that is not validated in this repo.
