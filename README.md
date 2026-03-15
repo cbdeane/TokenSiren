@@ -1,8 +1,12 @@
 # TokenSiren
 
+TokenSiren is an experimental observability pipeline for LLM inference runtimes built using eBPF uprobes.
+
+It captures request lifecycle and token emission telemetry directly from the inference server process with near-zero overhead and exports structured metrics to Prometheus and Grafana.
+
 ![TokenSiren Dashboard](assets/grafana-dashboard.png)
 
-TokenSiren explores low-overhead telemetry collection for LLM inference runtimes using eBPF uprobes.
+TokenSiren instruments LLM inference runtimes at the kernel level to measure request lifecycle events, token throughput, and latency distributions without modifying the serving hot path.
 
 The project separates kernel-resident event collection from userspace metric export, allowing token-level request behavior to be observed with minimal impact on the inference hot path.
 
@@ -13,13 +17,9 @@ The current repository provides a working end-to-end prototype targeting vLLM.
 This repo implements a minimal pipeline: attach uprobes to vLLM symbols, collect per-request timing in eBPF maps, and expose metrics via a Prometheus endpoint. The remaining gaps are around production hardening and richer request correlation.
 
 ## Problems to solve
-Modern LLM inference systems expose limited runtime visibility into
-token throughput, latency, and request behavior.
+Modern LLM inference systems expose limited runtime visibility into token throughput, request latency distributions, and per-request stream behavior during generation.
 
-TokenSiren instruments inference runtimes using eBPF uprobes and exports
-structured telemetry through OpenTelemetry pipelines for analysis
-in Prometheus and Grafana.
-
+TokenSiren addresses this gap by separating kernel-resident event collection from userspace metric export, allowing request lifecycle events to be captured with minimal overhead on the inference hot path.
 
 ## Current Architecture
 
@@ -106,9 +106,17 @@ Near term work is focused on tightening the prototype into a robust vLLM probe p
 - add a model label only when there is a reliable source (avoid polling or a new control plane service in v1)
 - improve error handling and lifecycle management around probe attachment
 
-## vLLM stream hook patch (start, emit, end)
+## vLLM stream instrumentation and patch (start, emit, end)
 
-This patch was created while instrumenting vLLM for TokenSiren. It introduces minimal helpers invoked at stream start, per-chunk emit, and immediately before `[DONE]` so external observability tooling can detect request boundaries without relying on Python control-flow heuristics.
+While instrumenting vLLM it became necessary to identify stable lifecycle boundaries for request start, token emission, and request completion.
+
+Tracing the streaming execution paths revealed that the final request completion signal was only represented as a "[DONE]" sentinel emitted from Python generator control flow.
+
+TokenSiren requires explicit request start, token emit, and request completion events in order to construct accurate latency distributions and throughput metrics without relying on inference runtime internals.
+
+To expose these lifecycle boundaries without relying on brittle generator heuristics, a minimal set of hooks was introduced in the vLLM runtime. 
+
+These hooks expose stable C++ symbols inside the vLLM extension module, allowing TokenSiren to attach uprobes without depending on Python control flow.
 
 Files touched (why and where):
 
