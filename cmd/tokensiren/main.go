@@ -15,6 +15,16 @@ func main() {
         log.Fatalf("load .env: %v", err)
     }
 
+    metricsAddr := os.Getenv("TOKENSIREN_METRICS_ADDR")
+    if metricsAddr == "" {
+        metricsAddr = ":2112"
+    }
+    if strings.HasPrefix(metricsAddr, ":") {
+        log.Printf("TokenSiren started on port %s", metricsAddr[1:])
+    } else {
+        log.Printf("TokenSiren started on %s", metricsAddr)
+    }
+
     runtimeCfg := runtime.VLLMConfig{
         BinaryPath:   os.Getenv("TOKENSIREN_BINARY_PATH"),
         BPFObject:    os.Getenv("TOKENSIREN_BPF_OBJECT"),
